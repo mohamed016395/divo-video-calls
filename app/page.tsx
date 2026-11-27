@@ -2,15 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-const people = [
-  { name: 'Maya Chen', preview: 'The launch looks amazing!', time: '2m', online: true, color: '#e9b7a3', initials: 'MC' },
-  { name: 'Jordan Lee', preview: 'Sent a photo', time: '18m', online: true, color: '#8bb4ce', initials: 'JL' },
-  { name: 'Design Team', preview: 'Aisha: I added the notes', time: '1h', online: false, color: '#baabd4', initials: 'DT' },
-  { name: 'Noah Williams', preview: 'See you then!', time: '3h', online: false, color: '#d3b589', initials: 'NW' },
-  { name: 'Aisha Khan', preview: 'You: Thanks for the update', time: '1d', online: true, color: '#91b49b', initials: 'AK' },
+const conversations = [
+  { name: 'Maya Chen', initials: 'MC', message: 'The launch looks amazing!', time: '2m', online: true, accent: '#e8a995' },
+  { name: 'Jordan Lee', initials: 'JL', message: 'Sent a photo', time: '18m', online: true, accent: '#82abc4' },
+  { name: 'Design Team', initials: 'DT', message: 'Aisha: I added the notes', time: '1h', online: false, accent: '#b1a1c9' },
+  { name: 'Noah Williams', initials: 'NW', message: 'See you then!', time: '3h', online: false, accent: '#c9aa7d' },
+  { name: 'Aisha Khan', initials: 'AK', message: 'You: Thanks for the update', time: '1d', online: true, accent: '#86b09a' },
 ];
 
-const initialMessages = [
+const starterMessages = [
   { mine: false, text: 'Hey! Are we still on for the walkthrough today?', time: '10:32 AM' },
   { mine: true, text: 'Absolutely — I just finished the latest changes.', time: '10:33 AM' },
   { mine: true, text: 'Want me to share my screen and give you a quick tour?', time: '10:33 AM' },
@@ -19,95 +19,145 @@ const initialMessages = [
 
 export default function Home() {
   const [active, setActive] = useState(0);
-  const [messages, setMessages] = useState(initialMessages);
+  const [messages, setMessages] = useState(starterMessages);
   const [draft, setDraft] = useState('');
-  const [inCall, setInCall] = useState(false);
+  const [mobileMenu, setMobileMenu] = useState(false);
+  const [callOpen, setCallOpen] = useState(false);
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const localVideo = useRef<HTMLVideoElement>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (!inCall) return;
+    if (!callOpen) return;
 
-    navigator.mediaDevices?.getUserMedia({ video: true, audio: true }).then((stream) => {
-      if (localVideo.current) localVideo.current.srcObject = stream;
-    }).catch(() => {});
+    let stream: MediaStream | undefined;
+    navigator.mediaDevices?.getUserMedia({ video: true, audio: true })
+      .then((mediaStream) => {
+        stream = mediaStream;
+        if (videoRef.current) videoRef.current.srcObject = mediaStream;
+      })
+      .catch(() => undefined);
 
-    return () => {
-      const video = localVideo.current;
-      if (video?.srcObject instanceof MediaStream) {
-        video.srcObject.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, [inCall]);
+    return () => stream?.getTracks().forEach((track) => track.stop());
+  }, [callOpen]);
 
   function sendMessage() {
     const text = draft.trim();
     if (!text) return;
-    setMessages([...messages, { mine: true, text, time: 'Now' }]);
+    setMessages((current) => [...current, { mine: true, text, time: 'Now' }]);
     setDraft('');
   }
 
+  const person = conversations[active];
+  const visibleMessages = query
+    ? messages.filter((message) => message.text.toLowerCase().includes(query.toLowerCase()))
+    : messages;
+
   return (
-    <main className="app-shell">
-      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+    <main className="app">
+      <aside className={`sidebar ${mobileMenu ? 'sidebar-open' : ''}`}>
         <div className="brand-row">
-          <div className="brand-mark"><span /></div><strong>Divo</strong>
-          <button className="icon-button close-mobile" onClick={() => setSidebarOpen(false)}>×</button>
+          <button className="brand" aria-label="Divo home">
+            <span className="brand-logo"><span /></span>
+            <strong>Divo</strong>
+          </button>
+          <button className="icon close-menu" onClick={() => setMobileMenu(false)} aria-label="Close menu">×</button>
         </div>
-        <button className="compose"><span>＋</span><span>New message</span></button>
-        <div className="section-title">Messages <span>{people.length}</span></div>
-        <div className="conversation-list">
-          {people.map((person, index) => (
-            <button key={person.name} className={`conversation ${active === index ? 'active' : ''}`} onClick={() => { setActive(index); setSidebarOpen(false); }}>
-              <div className="avatar" style={{ background: person.color }}>{person.initials}<i className={person.online ? 'online' : ''} /></div>
-              <div className="conversation-copy"><div><b>{person.name}</b><time>{person.time}</time></div><p>{person.preview}</p></div>
+
+        <button className="new-message"><span className="plus">＋</span> New message</button>
+
+        <div className="section-heading"><span>Messages</span><span>{conversations.length}</span></div>
+        <nav className="conversation-list" aria-label="Conversations">
+          {conversations.map((conversation, index) => (
+            <button
+              type="button"
+              key={conversation.name}
+              className={`conversation ${active === index ? 'selected' : ''}`}
+              onClick={() => { setActive(index); setMobileMenu(false); setQuery(''); }}
+            >
+              <span className="avatar" style={{ background: conversation.accent }}>
+                {conversation.initials}
+                {conversation.online && <i className="presence" />}
+              </span>
+              <span className="conversation-info">
+                <span className="conversation-top"><b>{conversation.name}</b><time>{conversation.time}</time></span>
+                <span className="conversation-preview">{conversation.message}</span>
+              </span>
             </button>
           ))}
-        </div>
-        <div className="profile"><div className="avatar you">YO<i className="online" /></div><div><b>You</b><p>Available</p></div><button className="icon-button">•••</button></div>
+        </nav>
+
+        <button className="profile" type="button">
+          <span className="avatar profile-avatar">YO<i className="presence" /></span>
+          <span className="profile-copy"><b>You</b><small>Available</small></span>
+          <span className="dots">•••</span>
+        </button>
       </aside>
 
-      <section className="chat">
+      <section className="chat-panel">
         <header className="chat-header">
-          <button className="icon-button menu-button" onClick={() => setSidebarOpen(true)}>☰</button>
-          <div className="avatar" style={{ background: people[active].color }}>{people[active].initials}<i className={people[active].online ? 'online' : ''} /></div>
-          <div className="chat-name"><b>{people[active].name}</b><span>{people[active].online ? 'Active now' : 'Last seen recently'}</span></div>
-          <div className="header-actions">
-            <button className="icon-button search-button">⌕</button>
-            <button className="video-button" onClick={() => setInCall(true)}>🎥 <span>Video call</span></button>
-          </div>
+          <button className="icon menu-button" onClick={() => setMobileMenu(true)} aria-label="Open menu">☰</button>
+          <span className="avatar header-avatar" style={{ background: person.accent }}>{person.initials}{person.online && <i className="presence" />}</span>
+          <span className="header-person"><b>{person.name}</b><small>{person.online ? 'Active now' : 'Last seen recently'}</small></span>
+          <span className="header-actions">
+            <button className={`icon action ${searchOpen ? 'action-active' : ''}`} onClick={() => setSearchOpen((open) => !open)} aria-label="Search messages">⌕</button>
+            <button className="video-button" onClick={() => setCallOpen(true)} type="button"><span className="video-icon">●</span><b>Video call</b></button>
+          </span>
         </header>
 
-        <div className="messages">
-          <div className="date-divider"><span>Today</span></div>
-          {messages.map((message, index) => (
-            <div className={`message-row ${message.mine ? 'mine' : ''}`} key={index}>
-              {!message.mine && <div className="mini-avatar" style={{ background: people[active].color }}>{people[active].initials}</div>}
-              <div><div className="bubble">{message.text}</div><time>{message.time}</time></div>
+        {searchOpen && (
+          <div className="search-row">
+            <span>⌕</span>
+            <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search in conversation" />
+            {query && <button onClick={() => setQuery('')} aria-label="Clear search">×</button>}
+          </div>
+        )}
+
+        <div className="messages" aria-live="polite">
+          <div className="date"><span>Today</span></div>
+          {visibleMessages.map((message, index) => (
+            <div className={`message-row ${message.mine ? 'mine' : ''}`} key={`${message.text}-${index}`}>
+              {!message.mine && <span className="mini-avatar" style={{ background: person.accent }}>{person.initials}</span>}
+              <div className="message-stack">
+                <div className="bubble">{message.text}</div>
+                <time>{message.time}</time>
+              </div>
             </div>
           ))}
+          {query && visibleMessages.length === 0 && <div className="empty-search">No messages match “{query}”</div>}
         </div>
 
         <footer className="composer">
-          <button className="icon-button attach">＋</button>
-          <input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && sendMessage()} placeholder="Write a message…" />
-          <button className="icon-button emoji">☺</button>
-          <button className="send-button" onClick={sendMessage}>➤</button>
+          <button className="icon attach" type="button" aria-label="Attach a file">＋</button>
+          <input
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Enter') sendMessage(); }}
+            placeholder="Write a message…"
+          />
+          <button className="icon emoji" type="button" aria-label="Choose emoji">☺</button>
+          <button className="send" type="button" onClick={sendMessage} aria-label="Send message">➤</button>
         </footer>
       </section>
 
-      {inCall && (
-        <div className="call-overlay"><div className="call-stage"><div className="remote-view">
-          <div className="remote-avatar" style={{ background: people[active].color }}>{people[active].initials}</div>
-          <b>{people[active].name}</b><span>Connected</span>
-          <video ref={localVideo} autoPlay muted playsInline className={cameraOff ? 'camera-off' : ''} />
-        </div><div className="call-controls">
-          <button className={muted ? 'active' : ''} onClick={() => setMuted(!muted)}>{muted ? 'Unmute' : 'Mute'}</button>
-          <button className={cameraOff ? 'active' : ''} onClick={() => setCameraOff(!cameraOff)}>{cameraOff ? 'Start camera' : 'Stop camera'}</button>
-          <button className="hang-up" onClick={() => setInCall(false)}>End call</button>
-        </div></div></div>
+      {callOpen && (
+        <div className="call-overlay" role="dialog" aria-modal="true" aria-label="Video call">
+          <div className="call-card">
+            <div className="call-background">
+              <span className="remote-avatar" style={{ background: person.accent }}>{person.initials}</span>
+              <b>{person.name}</b>
+              <small>Connected</small>
+              <video ref={videoRef} autoPlay muted playsInline className={cameraOff ? 'camera-hidden' : 'local-video'} />
+            </div>
+            <div className="call-controls">
+              <button type="button" className={muted ? 'control-active' : ''} onClick={() => setMuted((value) => !value)}>{muted ? 'Unmute' : 'Mute'}</button>
+              <button type="button" className={cameraOff ? 'control-active' : ''} onClick={() => setCameraOff((value) => !value)}>{cameraOff ? 'Camera on' : 'Camera off'}</button>
+              <button type="button" className="hangup" onClick={() => setCallOpen(false)}>End call</button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );
