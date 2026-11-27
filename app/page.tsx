@@ -29,9 +29,17 @@ export default function Home() {
 
   useEffect(() => {
     if (!inCall) return;
+
     navigator.mediaDevices?.getUserMedia({ video: true, audio: true }).then((stream) => {
       if (localVideo.current) localVideo.current.srcObject = stream;
     }).catch(() => {});
+
+    return () => {
+      const video = localVideo.current;
+      if (video?.srcObject instanceof MediaStream) {
+        video.srcObject.getTracks().forEach((track) => track.stop());
+      }
+    };
   }, [inCall]);
 
   function sendMessage() {
@@ -84,7 +92,7 @@ export default function Home() {
 
         <footer className="composer">
           <button className="icon-button attach">＋</button>
-          <input value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendMessage()} placeholder="Write a message…" />
+          <input value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && sendMessage()} placeholder="Write a message…" />
           <button className="icon-button emoji">☺</button>
           <button className="send-button" onClick={sendMessage}>➤</button>
         </footer>
@@ -92,7 +100,7 @@ export default function Home() {
 
       {inCall && (
         <div className="call-overlay"><div className="call-stage"><div className="remote-view">
-          <div class="remote-avatar" style={{ background: people[active].color }}>{people[active].initials}</div>
+          <div className="remote-avatar" style={{ background: people[active].color }}>{people[active].initials}</div>
           <b>{people[active].name}</b><span>Connected</span>
           <video ref={localVideo} autoPlay muted playsInline className={cameraOff ? 'camera-off' : ''} />
         </div><div className="call-controls">
